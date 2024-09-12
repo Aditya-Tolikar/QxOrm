@@ -261,10 +261,43 @@ void QxSerializeJsonRegistered_loadHelper_MongoDB(const QJsonObject & obj, IxCla
    {
       qx::IxDataMember * pDataMember = pDataMemberX->get(l);
       if (! pDataMember || ! pDataMember->getSerialize() || ! pDataMember->getDao()) { continue; }
-      if (bMongoDBColumns && ! pDataMember->getIsPrimaryKey() && ! format.contains("," + pDataMember->getKey() + ",")) { continue; }
+      if (bMongoDBColumns && ! pDataMember->getIsPrimaryKey() && ! (format.contains("," + pDataMember->getKey() + ",") || format.contains("," + pDataMember->getKey() + "."))) { continue; }
       QString key = ((! bMongoDBChild && pDataMember->getIsPrimaryKey()) ? QString("_id") : pDataMember->getKey());
       key = ((bMongoDBChild && pDataMember->getIsPrimaryKey() && (! obj.contains(key))) ? QString("_id") : key);
-      if (obj.contains(key)) { pDataMember->fromJson(pOwner, obj.value(key), (QString("mongodb:child:") + format)); }
+      if (obj.contains(key))
+      {
+         QString innerObjectFormat;
+         if (bMongoDBColumns)
+         {
+            const QString srchr = "," + pDataMember->getKey() + ".";
+            if (format.contains(srchr)) // If current key's sub-keys are in the projection, then propagate
+            {
+               innerObjectFormat = "mongodb:columns{,";
+               int indx = 0;
+               do
+               {
+                  indx = format.indexOf(srchr, indx);
+                  if (indx < 0)
+                  {
+                     break;
+                  }
+                  indx += srchr.length();
+                  innerObjectFormat.append(format.mid(indx, (format.indexOf(",", indx) - indx)) + ",");
+               }
+               while (indx > 0);
+               innerObjectFormat += "}";
+            }
+            else  // If no subkeys are in projection, then inner object is to freely insert all inner keys
+            {
+               innerObjectFormat = "mongodb";
+            }
+         }
+         else // If no columns, then as is
+         {
+            innerObjectFormat = format;
+         }
+         pDataMember->fromJson(pOwner, obj.value(key), (QString("mongodb:child:") + innerObjectFormat));
+      }
    }
 }
 
