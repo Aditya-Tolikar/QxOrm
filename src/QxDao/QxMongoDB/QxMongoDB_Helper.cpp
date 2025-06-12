@@ -854,7 +854,13 @@ QSqlError QxMongoDB_Helper::QxMongoDB_HelperImpl::executeCommand_(qx::dao::detai
    if (query && (query->type() == "cursor"))
    {
       reply->m_destroy = false;
-      qx_scoped_wrapper<mongoc_cursor_t> cursor(mongoc_cursor_new_from_command_reply(coll.client->get(), reply->get(), 0));
+      bson_error_t errorGettingServer{};
+      mongoc_server_description_t* serverDesc = mongoc_client_select_server(coll.client->get(), false, NULL, &errorGettingServer);
+      if (errorGettingServer.code != 0)
+      {
+         qDebug () << "mongoc_client_select_server : error code: " << errorGettingServer.code << "\ndomain: " << errorGettingServer.domain << "\nmessage: " << errorGettingServer.message;
+      }
+      qx_scoped_wrapper<mongoc_cursor_t> cursor(mongoc_cursor_new_from_command_reply(coll.client->get(), reply->get(), mongoc_server_description_id(serverDesc)));
       if (! cursor.get()) { return QSqlError("[QxOrm] Unable to create a 'mongoc_cursor_t' cursor instance from reply (" + pClass->getName() + ")", "", QSqlError::UnknownError); }
 
       const bson_t * doc = NULL; QString json;
