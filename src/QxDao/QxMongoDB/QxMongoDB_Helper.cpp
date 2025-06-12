@@ -202,6 +202,15 @@ struct qx_scoped_wrapper<qx::dao::mongodb::qx_reply>
 };
 typedef std::unique_ptr< qx_scoped_wrapper<qx::dao::mongodb::qx_reply> > qx_reply_ptr;
 
+template <>
+struct qx_scoped_wrapper<mongoc_server_description_t>
+{
+   mongoc_server_description_t * m_server_desc;
+   qx_scoped_wrapper<mongoc_server_description_t>(mongoc_server_description_t * desc) : m_server_desc(desc) {}
+   ~qx_scoped_wrapper<mongoc_server_description_t>() { mongoc_server_description_destroy(m_server_desc); }
+   mongoc_server_description_t * get() { return m_server_desc; }
+};
+
 struct qx_db_collection
 {
    std::shared_ptr<qx_scoped_wrapper<mongoc_client_t> > client;
@@ -855,12 +864,12 @@ QSqlError QxMongoDB_Helper::QxMongoDB_HelperImpl::executeCommand_(qx::dao::detai
    {
       reply->m_destroy = false;
       bson_error_t errorGettingServer{};
-      mongoc_server_description_t* serverDesc = mongoc_client_select_server(coll.client->get(), false, NULL, &errorGettingServer);
+      qx_scoped_wrapper<mongoc_server_description_t> serverDesc (mongoc_client_select_server(coll.client->get(), false, NULL, &errorGettingServer));
       if (errorGettingServer.code != 0)
       {
          qDebug () << "mongoc_client_select_server : error code: " << errorGettingServer.code << "\ndomain: " << errorGettingServer.domain << "\nmessage: " << errorGettingServer.message;
       }
-      qx_scoped_wrapper<mongoc_cursor_t> cursor(mongoc_cursor_new_from_command_reply(coll.client->get(), reply->get(), mongoc_server_description_id(serverDesc)));
+      qx_scoped_wrapper<mongoc_cursor_t> cursor(mongoc_cursor_new_from_command_reply(coll.client->get(), reply->get(), mongoc_server_description_id(serverDesc.get())));
       if (! cursor.get()) { return QSqlError("[QxOrm] Unable to create a 'mongoc_cursor_t' cursor instance from reply (" + pClass->getName() + ")", "", QSqlError::UnknownError); }
 
       const bson_t * doc = NULL; QString json;
